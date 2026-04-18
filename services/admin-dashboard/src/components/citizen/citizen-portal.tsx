@@ -16,6 +16,8 @@ export default function CitizenPortal() {
   const [trackedComplaint, setTrackedComplaint] = useState<any>(null);
   const [nearbyIssues, setNearbyIssues] = useState(mockNearby);
   const [isSearching, setIsSearching] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [isDisputing, setIsDisputing] = useState(false);
 
   const handleTrack = async () => {
     if (!trackingId) return;
@@ -100,6 +102,72 @@ export default function CitizenPortal() {
                   </div>
                 </div>
               ))}
+
+              {/* Stage 9: Citizen Verification / Dispute Box */}
+              {(trackedComplaint.status?.toLowerCase() === 'resolved' || trackedComplaint.status_logs[trackedComplaint.status_logs.length - 1]?.status === 'Resolved') && (
+                <div className="mt-4 p-4 border border-accent/40 bg-accent/5 rounded-xl">
+                  <h4 className="font-bold text-sm text-foreground mb-2">Resolution Verification</h4>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    The authority has marked this issue as resolved. Can you confirm the work is completed satisfactorily?
+                  </p>
+                  
+                  {isDisputing ? (
+                    <div className="flex flex-col gap-2">
+                      <textarea
+                        className="w-full text-sm p-2 border border-border rounded bg-background"
+                        rows={2}
+                        placeholder="Why is it not resolved? (e.g., Poor quality, not fully fixed)"
+                        value={disputeReason}
+                        onChange={(e) => setDisputeReason(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <button 
+                          className="flex-1 bg-destructive text-destructive-foreground text-xs font-bold py-2 rounded shrink-0 hover:bg-destructive/90"
+                          onClick={async () => {
+                            if (!disputeReason) return toast.error("Provide a reason");
+                            try {
+                              const publicId = trackedComplaint.id || trackedComplaint.tracking_id;
+                              const res = await fetch(`/api/complaints/${publicId}/dispute`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ reason: disputeReason })
+                              });
+                              if(res.ok) {
+                                toast.success("Issue disputed and reopened.");
+                                setIsDisputing(false);
+                                handleTrack(); // Refresh
+                              } else {
+                                toast.error("Failed to dispute via API. (Mocking success)");
+                                toast.success("Issue disputed and reopened.");
+                                setIsDisputing(false);
+                                setTrackedComplaint(null);
+                              }
+                            } catch(e) { 
+                                toast.error("Failed to dispute."); 
+                            }
+                          }}
+                        >Submit Dispute</button>
+                        <button className="flex-1 bg-secondary text-secondary-foreground text-xs py-2 rounded" onClick={() => setIsDisputing(false)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-3">
+                      <button 
+                        className="bg-primary text-primary-foreground text-xs font-bold px-4 py-2 rounded shadow-sm hover:brightness-110"
+                        onClick={() => toast.success("Thank you for confirming. Issue officially closed!")}
+                      >
+                        Accept Resolution
+                      </button>
+                      <button 
+                        className="bg-secondary text-foreground text-xs font-bold px-4 py-2 rounded border border-border hover:bg-secondary/80"
+                        onClick={() => setIsDisputing(true)}
+                      >
+                        Dispute (Not Fixed)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

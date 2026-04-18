@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import { Send, AudioLines, Loader2, PhoneOff, Paperclip, X } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useAnimatedPlaceholder } from "@/hooks/useAnimatedPlaceholder";
-import { useVoiceCall } from "@/hooks/useVoiceCall";
 import type { ChatMessage, Attachment } from "@/types";
 
 interface MessageInputProps {
@@ -54,20 +53,42 @@ export function MessageInput({
     }
   }, [inputRef]);
 
-  // Voice call hook
-  const {
-    isConnecting,
-    isConnected,
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
-    connect,
-    disconnect,
+  const handleVoiceClick = () => {
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
 
-  } = useVoiceCall(
-    apiUrl && tenantId && sessionId
-      ? { apiUrl, tenantId, sessionId }
-      : null,
-    onVoiceTranscript
-  );
+    // @ts-ignore
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Your browser does not support the Web Speech API');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = (e: any) => {
+      console.error('Speech recognition error', e.error);
+      setIsListening(false);
+    };
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInput((prev) => prev ? prev + ' ' + transcript : transcript);
+      // Auto-focus after speech
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    };
+    recognition.start();
+  };
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -123,14 +144,6 @@ export function MessageInput({
     }
   };
 
-  const handleVoiceClick = () => {
-    if (isConnected) {
-      disconnect();
-    } else {
-      connect();
-    }
-  };
-
   return (
     <form
       onSubmit={handleSubmit}
@@ -167,7 +180,7 @@ export function MessageInput({
           type="button"
           size="icon"
           variant="ghost"
-          disabled={disabled || isConnecting || isLoading}
+          disabled={disabled || isListening || isLoading}
           onClick={() => fileInputRef.current?.click()}
           className="rounded-full text-gray-500 hover:bg-gray-100 flex-shrink-0"
         >
@@ -189,23 +202,21 @@ export function MessageInput({
         <Button
           type={(input.trim() || attachment) ? "submit" : "button"}
           size="icon"
-          variant={isConnected ? "destructive" : "default"}
-          disabled={disabled || isConnecting || isLoading}
+          variant={isListening ? "destructive" : "default"}
+          disabled={disabled || isLoading}
           onClick={(input.trim() || attachment) ? undefined : handleVoiceClick}
           className="rounded-full relative transition-all flex-shrink-0"
         >
-          {isConnecting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (input.trim() || attachment) ? (
+          {(input.trim() || attachment) ? (
             <Send className="h-4 w-4" />
-          ) : isConnected ? (
-            <PhoneOff className="h-4 w-4" />
+          ) : isListening ? (
+            <Loader2 className="h-4 w-4 animate-spin text-white" />
           ) : (
             <AudioLines className="h-4 w-4" />
           )}
 
           {/* Red pulse indicator when connected */}
-          {isConnected && (!input.trim() && !attachment) && (
+          {isListening && (!input.trim() && !attachment) && (
             <span className="absolute -top-1 -right-1 flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
@@ -213,13 +224,11 @@ export function MessageInput({
           )}
 
           <span className="sr-only">
-            {isConnecting
-              ? "Connecting..."
-              : (input.trim() || attachment)
+            {(input.trim() || attachment)
               ? "Send message"
-              : isConnected
-              ? "End voice call"
-              : "Start voice call"}
+              : isListening
+              ? "Stop listening"
+              : "Start listening"}
           </span>
         </Button>
       </div>

@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import Chatbot from "@/components/citizen/Chatbot";
 
 const inter = Inter({
-  variable: "--font-inter",
   subsets: ["latin"],
   variable: "--font-inter",
 });
@@ -29,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} antialiased`}
+        className={`${inter.variable} ${playfair.variable} antialiased`}
         style={{ fontFamily: "var(--font-inter, 'Inter', system-ui, sans-serif)" }}
       >
         <ThemeProvider

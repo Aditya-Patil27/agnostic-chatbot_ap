@@ -76,12 +76,7 @@ function App({ config }: AppProps = {}) {
       {
         id: "greeting-1",
         role: "assistant",
-        parts: [
-          {
-            type: "text",
-            text: "Hello! I am SCIRP+ Assistant, your civic reporting companion. You can tell me about a civic issue (like garbage, potholes, or streetlights) and I will guide you step-by-step to file a complaint. How can I help you today?",
-          },
-        ],
+        content: "Hello! I am SCIRP+ Assistant, your civic reporting companion. You can tell me about a civic issue (like garbage, potholes, or streetlights) and I will guide you step-by-step to file a complaint. How can I help you today?",
       },
     ],
     transport: new DefaultChatTransport({
@@ -110,6 +105,17 @@ function App({ config }: AppProps = {}) {
     onError: (err) => console.error("Chat error:", err),
     onFinish: ({ message }) => {
       if (!isOpen && message.role === "assistant") markAsUnread();
+      
+      // Auto-TTS for the standalone widget
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window && message?.content) {
+        window.speechSynthesis.cancel();
+        const pureText = message.content.replace(/[*_#]/g, '');
+        const utterance = new SpeechSynthesisUtterance(pureText);
+        utterance.lang = 'en-US';
+        const voices = window.speechSynthesis.getVoices();
+        utterance.voice = voices.find(v => v.name.includes('Google') || v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Zira')) || null;
+        window.speechSynthesis.speak(utterance);
+      }
     },
     onData: (dataPart: any) => {
       if (dataPart.type === "data-suggestions" && dataPart.data?.suggestions) {

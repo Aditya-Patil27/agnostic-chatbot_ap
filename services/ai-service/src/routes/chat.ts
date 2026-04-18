@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { Readable } from "stream";
 import {
   streamText,
   type ModelMessage,
@@ -241,7 +240,18 @@ chatRouter.post("/chat", async (req, res) => {
       return;
     }
 
-    const stream = createChatStream({ messages, tenantId, email, sessionId });
+    const modelMessages = convertToModelMessages(messages);
+    if (modelMessages.length === 0) {
+      res.status(400).json({ error: "No valid chat messages found" });
+      return;
+    }
+
+    const stream = createChatStream({
+      messages: modelMessages,
+      tenantId,
+      email,
+      sessionId,
+    });
     pipeUIMessageStreamToResponse({
       response: res,
       stream,

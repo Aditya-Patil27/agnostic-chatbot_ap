@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
 import {
   MessageSquare, X, Minimize2, Maximize2, Send,
-  Paperclip, Loader2, ShieldCheck, TicketCheck,
+  Paperclip, Loader2, ShieldCheck, TicketCheck, Mic,
 } from 'lucide-react';
 import { MessageBubble } from '@/components/widget/MessageBubble';
 import type { ChatMessage } from '@/components/widget/types';
@@ -22,9 +22,7 @@ const TOKENS: React.CSSProperties = {
   '--w-success': '#16a34a',
 } as React.CSSProperties;
 
-const API_URL =
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_AI_SERVICE_URL) ||
-  'http://localhost:3000';
+const CHAT_API_URL = '/api/chat';
 
 const TENANT_ID =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_TENANT_ID) ||
@@ -41,9 +39,9 @@ export default function Chatbot() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [inputValue, setInputValue] = useState('');
-
+  const [isListening, setIsListening] = useState(false);
   const { messages, sendMessage, status } = useChat({
-    api: `${API_URL}/api/chat`,
+    api: CHAT_API_URL,
     body: { tenantId: TENANT_ID },
     initialMessages: [
       {
@@ -55,8 +53,36 @@ export default function Chatbot() {
     onData: (data: any) => {
       if (data?.suggestions) setSuggestions(data.suggestions);
     },
-    onFinish: () => { if (!isOpen) setHasUnread(true); },
-    onError: (e) => console.error('[Chatbot]', e),
+    onFinish: (message) => { 
+      if (!isOpen) setHasUnread(true); 
+      
+      // Auto-TTS for the finished response
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window && message?.content) {
+        // Cancel any currently playing speech
+        window.speechSynthesis.cancel();
+        
+        // Strip markdown (bold, italic, list markers) so TTS speaks correctly
+        const pureText = message.content.replace(/[*_#]/g, '');
+        const utterance = new SpeechSynthesisUtterance(pureText);
+        utterance.lang = 'en-US';
+        
+        const voices = window.speechSynthesis.getVoices();
+        utterance.voice = voices.find(v => v.name.includes('Google') || v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Zira')) || null;
+        
+        window.speechSynthesis.speak(utterance);
+      }
+    },
+    onError: (e) => {
+      const message = e instanceof Error ? e.message : String(e);
+      if (message.includes('<!DOCTYPE html>') || message.includes('404')) {
+        console.error('[Chatbot] Chat endpoint returned HTML/404. Verify admin /api/chat proxy and ai-service port.', {
+          chatApi: CHAT_API_URL,
+          error: message.slice(0, 300),
+        });
+        return;
+      }
+      console.error('[Chatbot]', e);
+    },
   });
 
 
@@ -110,6 +136,31 @@ export default function Chatbot() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(e as any); }
+  };
+
+  const startListening = () => {
+    // @ts-ignore
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Your browser does not support the Web Speech API');
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = (e: any) => {
+      console.error('Speech recognition error', e.error);
+      setIsListening(false);
+    };
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInputValue((prev) => prev ? prev + ' ' + transcript : transcript);
+    };
+    recognition.start();
   };
 
   // Map `ai` useChat messages to our ChatMessage type
@@ -319,6 +370,29 @@ export default function Chatbot() {
                 onFocus={e => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)'; }}
                 onBlur={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = 'none'; }}
               />
+
+              <button
+                type="button"
+                onClick={startListening}
+                disabled={isLoading}
+                title="Use Microphone"
+                style={{
+                  background: isListening ? '#f43f5e' : 'none',
+                  border: isListening ? 'none' : '1px solid #e2e8f0',
+                  borderRadius: '50%',
+                  width: '38px',
+                  height: '38px',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  transition: 'all 0.2s',
+                  color: isListening ? 'white' : '#64748b'
+                }}
+              >
+                {isListening ? <Loader2 size={16} color="white" style={{ animation: 'spin 1s linear infinite' }} /> : <Mic size={16} />}
+              </button>
 
               <button
                 type="submit"
