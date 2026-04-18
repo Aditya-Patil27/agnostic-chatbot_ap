@@ -81,7 +81,6 @@ export default async function CivicDashboardPage() {
       sla_breached: i.sla_breach_risk === "breached",
     }));
 
-export default function CivicDashboardPage() {
   return (
     <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* ── Header with Notification Bell ───────────────────────────────── */}

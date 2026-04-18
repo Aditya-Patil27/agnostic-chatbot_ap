@@ -85,7 +85,7 @@ export function EmailPrompt({ onSubmit, onSkip }: EmailPromptProps) {
           </div>
           <div>
             <CardTitle className="text-xl text-[#004aad] font-semibold">
-              Ram Ram! 🙏
+              Hello their 🙏
             </CardTitle>
             <CardDescription className="text-sm text-gray-600 mt-2">
               Enter your email to save your conversation history
